@@ -28,18 +28,30 @@ pipeline {
         }
 
         stage("Push the changed deployment file to Git") {
-            steps {
-                sh """
-                   git config --global user.name " DevopsGuy1997"
-                   git config --global user.email "rakeshmothkur@gmailcom"
-                   git add deployment.yaml
-                   git commit -m "Updated Deployment Manifest"
-                """
-                withCredentials([gitUsernamePassword(credentialsId: 'github', gitToolName: 'Default')]) {
-                  sh "git@github.com:DevopsGuy1997/gitops-register-app.git"
-                }
-            }
+    steps {
+        // 'github' should match the ID of your credential in Jenkins
+        withCredentials([usernamePassword(credentialsId: 'github', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
+            sh '''
+                # 1. Setup local identity (required for committing)
+                git config --global user.name "DevopsGuy1997"
+                git config --global user.email "rakeshmothkur@gmail.com"
+
+                # 2. Stage the file
+                git add deployment.yaml
+
+                # 3. Only commit if there are changes (avoids exit code 1)
+                if ! git diff-index --quiet HEAD; then
+                    git commit -m "Updated Deployment Manifest to version ${IMAGE_TAG}"
+                    
+                    # 4. Push using HTTPS with the token injected for authentication
+                    # This replaces the git@github.com SSH line that failed
+                    git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/DevopsGuy1997/gitops-register-app.git main
+                else
+                    echo "No changes detected. Skipping push."
+                fi
+            '''
+           }
         }
-      
-    }
+      }
+   }
 }
